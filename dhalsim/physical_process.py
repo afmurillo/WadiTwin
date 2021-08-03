@@ -237,11 +237,14 @@ class PhysicalPlant:
                 result.append(str(link))
         return result
 
-    @staticmethod
-    def create_node_header(a_list):
+    def create_node_header(self, a_list):
         result = []
         for node in a_list:
             result.append(node + "_LEVEL")
+            # TODO: check this later
+            if self.data['simulator'] == 'epynet':
+                if node in self.junction_list:
+                    result.append(node + '_DEMAND')
         return result
 
     @staticmethod
@@ -318,6 +321,8 @@ class PhysicalPlant:
             for junction in self.junction_list:
                 self.values_list.extend(
                     [self.wn.junctions[junction].pressure.iloc[-1]])
+                self.values_list.extend(
+                    [self.wn.junctions[junction].actual_demand.iloc[-1]])
         elif self.simulator == 'wntr':
             for junction in self.junction_list:
                 self.values_list.extend(
@@ -735,8 +740,12 @@ class PhysicalPlant:
         if self.simulator == 'epynet':
             for junction in self.scada_junction_list:
                 level = self.wn.junctions[junction].pressure.iloc[-1]
+                demand = self.wn.junctions[junction].actual_demand.iloc[-1]
                 junction_name = junction
                 self.set_to_db(junction_name, level)
+                junction_name = junction + 'D'
+                # TODO: verify if junction_D exists
+                self.set_to_db(junction_name, demand)
         elif self.simulator == 'wntr':
             conn = sqlite3.connect(self.data["db_path"])
             c = conn.cursor()

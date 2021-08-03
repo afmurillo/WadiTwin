@@ -5,6 +5,10 @@
 - name: PLC2
   sensors:
     - T41
+    - J20
+    - J20D
 - name: PLC3
   sensors:
     - T42
+    - J4
+    - J4D

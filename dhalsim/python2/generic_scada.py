@@ -343,12 +343,18 @@ class GenericScada(BasePLC):
                 lock = threading.Lock()
                 thread.start_new_thread(self.update_cache, (lock, self.SCADA_CACHE_UPDATE_TIME))
 
+            # Self.plc_data has all the tag names and the index is plc_ip
+            # Self.cache has all the values of tag and the index is plc_ip
+            # Better to use a copy and not directly access self.cache values since it has a lock
+
             master_time = self.get_master_clock()
             #self.update_cache()
             results = [master_time, datetime.now()]
             with lock:
                 for plc_ip in self.plc_data:
                     results.extend(self.cache[plc_ip])
+                    self.logger.debug("scada values: " + str(self.plc_data[plc_ip]))
+                    self.logger.debug("scada values: " + str(self.cache[plc_ip]))
             self.saved_values.append(results)
 
             # Save scada_values.csv when needed

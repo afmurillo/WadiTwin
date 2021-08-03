@@ -17,7 +17,10 @@ class BasePLC(PLC):
                     # noinspection PyBroadException
                     try:
                         # Gaussian noise added with respect to noise_scale
-                        values.append(float(self.get(tag)) + np.random.normal(0, self.noise_scale))
+                        if self.noise_scale != 0:
+                            values.append(float(self.get(tag)) + np.random.normal(0, self.noise_scale))
+                        else:
+                            values.append(float(self.get(tag)))
                     except Exception:
                         self.logger.error("Exception trying to get the tag.")
                         time.sleep(0.05)
