@@ -460,10 +460,7 @@ class GenericPLC(BasePLC):
                 thread.start_new_thread(self.update_cache, (update_cache_lock, self.PLC_CACHE_UPDATE_TIME))
 
             for control in self.controls:
-                if control['type'].lower() == 'scada':
-                    control.apply(self, self.intermediate_yaml['scada']['public_ip'])
-                else:
-                    control.apply(self)
+                control.apply(self, self.intermediate_yaml['scada']['public_ip'])
 
             for attack in self.attacks:
                 attack.apply(self)

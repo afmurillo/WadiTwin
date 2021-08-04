@@ -122,6 +122,6 @@ class SCADAControl(Control):
         :param generic_plc: the PLC that will apply the control actions
         :param scada_ip: IP Address of the SCADA server that the PLC will query to obtain the actuator status
         """
+        return
         actuator_status = generic_plc.receive((self.actuator, 1), scada_ip)
         generic_plc.set_tag(self.actuator, actuator_status)
-
