@@ -458,8 +458,6 @@ class GenericPLC(BasePLC):
                 update_cache_lock = threading.Lock()
                 thread.start_new_thread(self.update_cache, (update_cache_lock, self.PLC_CACHE_UPDATE_TIME))
 
-            #self.update_cache()
-
             for control in self.controls:
                 control.apply(self)
 
