@@ -285,6 +285,7 @@ class GeneralReadmeGenerator:
         ret_str += self.get_value('log_level')
         ret_str += self.get_value('demand')
         ret_str += self.get_value('simulator')
+        ret_str += self.get_value('DQN_Control')
         return ret_str + self.get_optional('batch_simulations')
     
     def get_optional_data_parameters(self) -> str:

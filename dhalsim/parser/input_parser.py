@@ -104,35 +104,55 @@ class InputParser:
         Generates list of controls with their types, values, actuators, and
         potentially dependant; then adds that to self.data to be written to the yaml.
         """
-        input_file = FileStream(self.inp_file_path)
-        tree = controlsParser(CommonTokenStream(controlsLexer(input_file))).controls()
 
-        controls = []
-        for i in range(0, tree.getChildCount()):
-            child = tree.getChild(i)
-            # Get all common control values from the control
-            actuator = str(child.getChild(1))
-            action = str(child.getChild(2))
-            if child.getChildCount() == 8:
-                # This is an AT NODE control
-                dependant = str(child.getChild(5))
-                value = float(str(child.getChild(7)))
-                controls.append({
-                    "type": str(child.getChild(6)).lower(),
-                    "dependant": dependant,
-                    "value": value,
-                    "actuator": actuator,
-                    "action": action.lower()
-                })
-            if child.getChildCount() == 6:
-                # This is a TIME control
-                value = float(str(child.getChild(5)))
-                controls.append({
-                    "type": "time",
-                    "value": int(value),
-                    "actuator": actuator,
-                    "action": action.lower()
-                })
+        if self.data['DQN_Control'] and self.data['DQN_Control'] == True:
+            controls = []
+
+            for plc in self.data['plcs']:
+                plc['controls'] = []
+                actuators = plc['actuators']
+
+                for actuator in actuators:
+                    a_control = {
+                        "type": 'SCADA',
+                        "value": 0,
+                        "actuator": actuator,
+                        "action": None
+                    }
+
+                    controls.append(a_control)
+                    plc['controls'].append(a_control)
+
+        else:
+            input_file = FileStream(self.inp_file_path)
+            tree = controlsParser(CommonTokenStream(controlsLexer(input_file))).controls()
+
+            controls = []
+            for i in range(0, tree.getChildCount()):
+                child = tree.getChild(i)
+                # Get all common control values from the control
+                actuator = str(child.getChild(1))
+                action = str(child.getChild(2))
+                if child.getChildCount() == 8:
+                    # This is an AT NODE control
+                    dependant = str(child.getChild(5))
+                    value = float(str(child.getChild(7)))
+                    controls.append({
+                        "type": str(child.getChild(6)).lower(),
+                        "dependant": dependant,
+                        "value": value,
+                        "actuator": actuator,
+                        "action": action.lower()
+                    })
+                if child.getChildCount() == 6:
+                    # This is a TIME control
+                    value = float(str(child.getChild(5)))
+                    controls.append({
+                        "type": "time",
+                        "value": int(value),
+                        "actuator": actuator,
+                        "action": action.lower()
+                    })
 
         for plc in self.data['plcs']:
             plc['controls'] = []

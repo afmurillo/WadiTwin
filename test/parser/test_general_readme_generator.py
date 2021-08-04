@@ -46,7 +46,7 @@ def test_verifies_written(rm_gen, tmp_path, water_network_model):
     rm_gen.readme_path = tmp_path
     rm_gen.intermediate_yaml = {'inp_file': 'map.inp', 'iterations': 1, 'output_path': 'output',
                                 'network_topology_type': 'Simple', 'mininet_cli': False,
-                                'log_level': 'info', 'demand': 'pdd', 'simulator': 'wntr'}
+                                'log_level': 'info', 'demand': 'pdd', 'simulator': 'wntr', 'DQN_Control': False}
     rm_gen.batch = False
     rm_gen.version = '1.0.0'
     rm_gen.master_time = 1
@@ -107,12 +107,13 @@ def test_get_input_files_wo_batch(rm_gen):
 
 def test_get_configuration_parameters(rm_gen):
     rm_gen.intermediate_yaml = {'iterations': 1, 'network_topology_type': 'Simple',
-                                'mininet_cli': False, 'log_level': 'info', 'demand': 'pdd'}
+                                'mininet_cli': False, 'log_level': 'info', 'demand': 'pdd', 'DQN_Control':False}
     assert rm_gen.get_configuration_parameters() == "\n\n## Configuration parameters\n\niterations:" \
                                                     " 1\n\nnetwork_topology_type: Simple\n\n" \
                                                     "mininet_cli: False\n\nlog_level: info\n\n"\
                                                     "simulator: wntr\n\n" \
-                                                    "demand: pdd\n\nbatch_simulations: None"
+                                                    "demand: pdd\n\nbatch_simulations: None\n\n"\
+                                                    "DQN_Control: False"
 
 
 def test_get_optional_data_parameters_all(rm_gen):

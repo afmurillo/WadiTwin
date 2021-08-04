@@ -11,7 +11,7 @@ import yaml
 
 from basePLC import BasePLC
 from entities.attack import TimeAttack, TriggerBelowAttack, TriggerAboveAttack, TriggerBetweenAttack
-from entities.control import AboveControl, BelowControl, TimeControl
+from entities.control import AboveControl, BelowControl, TimeControl, SCADAControl
 from py2_logger import get_logger
 
 import threading
@@ -86,7 +86,7 @@ class GenericPLC(BasePLC):
         # Create list of dependant sensors
         dependant_sensors = []
         for control in self.intermediate_controls:
-            if control["type"] != "Time":
+            if control["type"] != "Time" and control["type"] != "SCADA":
                 dependant_sensors.append(control["dependant"])
 
         # Create list of PLC sensors
@@ -184,19 +184,20 @@ class GenericPLC(BasePLC):
         ret = []
         for control in controls_list:
             if control["type"].lower() == "above":
-                control_instance = AboveControl(control["actuator"], control["action"],
-                                                control["dependant"],
+                control_instance = AboveControl(control["actuator"], control["action"], control["dependant"],
                                                 control["value"])
                 ret.append(control_instance)
             if control["type"].lower() == "below":
-                control_instance = BelowControl(control["actuator"], control["action"],
-                                                control["dependant"],
+                control_instance = BelowControl(control["actuator"], control["action"], control["dependant"],
                                                 control["value"])
                 ret.append(control_instance)
             if control["type"].lower() == "time":
-                control_instance = TimeControl(control["actuator"], control["action"],
-                                               control["value"])
+                control_instance = TimeControl(control["actuator"], control["action"], control["value"])
                 ret.append(control_instance)
+            if control["type"].lower() == "scada":
+                control_instance = SCADAControl(control["actuator"], control["action"], control["value"])
+                ret.append(control_instance)
+
         return ret
 
     @staticmethod
@@ -459,7 +460,10 @@ class GenericPLC(BasePLC):
                 thread.start_new_thread(self.update_cache, (update_cache_lock, self.PLC_CACHE_UPDATE_TIME))
 
             for control in self.controls:
-                control.apply(self)
+                if control['type'].lower() == 'scada':
+                    control.apply(self, self.intermediate_yaml['scada']['public_ip'])
+                else:
+                    control.apply(self)
 
             for attack in self.attacks:
                 attack.apply(self)

@@ -20,6 +20,7 @@ def test_dict():
         "output_path": Path(),
         "iterations": 10,
         "mininet_cli": False,
+        "DQN_Control": False,
         "log_level": "info",
         "demand": "pdd",
         "noise_scale": 0.1,
@@ -102,7 +103,8 @@ def test_valid_dict(test_dict):
     ('network_topology_type', 'simple'),
     ('mininet_cli', False),
     ('log_level', 'info'),
-    ('simulator', 'pdd'),
+    ('simulator', 'wntr'),
+    ('DQN_Control', False),
     ('demand', 'pdd')
 ])
 def test_default_config(key, default_value, test_dict):
@@ -166,6 +168,11 @@ def test_required_config(required_key, test_dict):
     ('saving_interval', '3'),
     ('noise_scale', -1.0),
     ('noise_scale', '1'),
+    ('DQN_Control', "False"),
+    ('DQN_Control', "True"),
+    ('DQN_Control', ""),
+    ('DQN_Control', 1),
+    ('DQN_Control', 0),
 ])
 def test_invalid_config(key, invalid_value, test_dict):
     test_dict[key] = invalid_value
@@ -202,6 +209,8 @@ def test_invalid_config(key, invalid_value, test_dict):
     ('batch_simulations', 100, 100),
     ('saving_interval', 2, 2),
     ('noise_scale', 0.0, 0.0),
+    ('DQN_Control', True, True),
+    ('DQN_Control', False, False),
 ])
 def test_valid_config(key, input_value, expected_value, test_dict):
     test_dict[key] = input_value
