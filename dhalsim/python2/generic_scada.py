@@ -168,12 +168,17 @@ class GenericScada(BasePLC):
         """
         self.logger.debug('SCADA enters pre_loop')
 
+        if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+            self.logger.debug("Initializing actuators values")
+            self.send_actuator_values_flag = True
+            self.actuators_state_lock = threading.Lock()
+            self.init_actuator_values()
+
         signal.signal(signal.SIGINT, self.sigint_handler)
         signal.signal(signal.SIGTERM, self.sigint_handler)
 
         self.keep_updating_flag = True
         self.cache_update_process = None
-
         time.sleep(sleep)
 
     def db_query(self, query, parameters=None):
@@ -249,6 +254,7 @@ class GenericScada(BasePLC):
         self.stop_cache_update()
         self.logger.debug("SCADA shutdown")
         self.write_output()
+        self.send_actuator_values_flag = False
 
         sys.exit(0)
 
@@ -310,8 +316,7 @@ class GenericScada(BasePLC):
                     values = self.receive_multiple(self.plc_data[plc_ip], plc_ip)
                     with lock:
                         self.cache[plc_ip] = values
-                    self.logger.debug("PLC values received by SCADA from IP: " + str(plc_ip)
-                                      + " is " + str(values) + ".")
+                    #self.logger.debug("PLC values received by SCADA from IP: " + str(plc_ip) + " is " + str(values) + ".")
                 except Exception as e:
                     self.logger.error(
                         "PLC receive_multiple with tags {tags} from {ip} failed with exception '{e}'".format(
@@ -321,6 +326,45 @@ class GenericScada(BasePLC):
                     continue
             time.sleep(cache_update_time)
 
+    def init_actuator_values(self):
+        """
+        This method is only called if the global parameter control is set to DQN_Control.
+        Reads intermediate_yaml and initializes the actuators with the values defined in [STATUS] section of .inp file
+        """
+
+        if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+            self.actuator_status_cache = {}
+            for actuator in self.intermediate_yaml['actuators']:
+                if actuator['initial_state'].lower() == 'open':
+                    self.actuator_status_cache[actuator['name']] = 1
+                else:
+                    self.actuator_status_cache[actuator['name']] = 0
+            self.logger.debug('Initialized the actuators_status_cache with: ' + str(self.actuator_status_cache))
+
+    def update_actuator_values(self):
+        """
+        This method is only called if the global parameter control is set to DQN_Control
+        Method only for testing
+        """
+        with self.actuators_state_lock:
+            for actuator in self.intermediate_yaml['actuators']:
+                if self.actuator_status_cache[actuator['name']] == 1:
+                    self.actuator_status_cache[actuator['name']] = 0
+                if self.actuator_status_cache[actuator['name']] == 0:
+                    self.actuator_status_cache[actuator['name']] = 1
+                self.logger.debug('Updated the actuators_status_cache with: ' + str(self.actuator_status_cache))
+
+    def send_actuator_values(self, a, b):
+        """
+        This method is only called if the global parameter control is set to DQN_Control
+        Method running on a thread that sends the actuator status for the PLCs to query
+        """
+        while self.send_actuator_values_flag:
+            #self.logger.debug('sending actuators values: ' + str(self.actuator_status_cache))
+            self.send_multiple(self.actuator_status_cache.keys(), self.actuator_status_cache.values(),
+                               self.intermediate_yaml['scada']['local_ip'],)
+            time.sleep(0.05)
+
     def main_loop(self, sleep=0.5, test_break=False):
         """
         The main loop of a PLC. In here all the controls will be applied.
@@ -328,8 +372,12 @@ class GenericScada(BasePLC):
         :param sleep:  (Default value = 0.5) Not used
         :param test_break:  (Default value = False) used for unit testing, breaks the loop after one iteration
         """
+
         self.logger.debug("SCADA enters main_loop")
         lock = None
+
+        if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+            thread.start_new_thread(self.send_actuator_values, (0, 0))
 
         while True:
             while self.get_sync():
@@ -348,13 +396,12 @@ class GenericScada(BasePLC):
             # Better to use a copy and not directly access self.cache values since it has a lock
 
             master_time = self.get_master_clock()
-            #self.update_cache()
             results = [master_time, datetime.now()]
             with lock:
                 for plc_ip in self.plc_data:
                     results.extend(self.cache[plc_ip])
-                    self.logger.debug("scada values: " + str(self.plc_data[plc_ip]))
-                    self.logger.debug("scada values: " + str(self.cache[plc_ip]))
+                    #self.logger.debug("scada values: " + str(self.plc_data[plc_ip]))
+                    #self.logger.debug("scada values: " + str(self.cache[plc_ip]))
             self.saved_values.append(results)
 
             # Save scada_values.csv when needed
@@ -362,10 +409,14 @@ class GenericScada(BasePLC):
                     master_time % self.intermediate_yaml['saving_interval'] == 0:
                 self.write_output()
 
+            if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+                self.update_actuator_values()
+
             self.set_sync(1)
 
             if test_break:
                 break
+
 
 def is_valid_file(parser_instance, arg):
     """

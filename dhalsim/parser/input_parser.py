@@ -105,7 +105,7 @@ class InputParser:
         potentially dependant; then adds that to self.data to be written to the yaml.
         """
 
-        if self.data['DQN_Control'] and self.data['DQN_Control'] == True:
+        if 'DQN_Control' in self.data and self.data['DQN_Control']:
             controls = []
 
             for plc in self.data['plcs']:
