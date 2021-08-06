@@ -130,9 +130,6 @@ class SCADAControl(Control):
         :param scada_ip: IP Address of the SCADA server that the PLC will query to obtain the actuator status
         """
 
-        generic_plc.set((self.actuator, 1), 1)
-        return
-
         previous_value = self.value
 
         for i in range(self.SCADA_POLL_TRIES):
