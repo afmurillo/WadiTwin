@@ -1,10 +1,11 @@
 inp_file: anytown_map.inp
 output_path: output
-iterations: 3
+iterations: 24
 network_topology_type: complex
 plcs: !include anytown_plcs.yaml
 
 simulator: epynet
 demand: pdd
+DQN_Control: True
 
 log_level: debug
