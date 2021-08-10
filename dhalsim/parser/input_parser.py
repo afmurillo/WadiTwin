@@ -72,10 +72,10 @@ class InputParser:
         """
         Writes all needed inp file sections into the intermediate_yaml.
         """
-        # Generate PLC controls
-        self.generate_controls()
         # Generate list of actuators + initial values
         self.generate_actuators_list()
+        # Generate PLC controls
+        self.generate_controls()
         # Generate list of times
         self.generate_times()
         # Generate initial values if batch mode is true
@@ -113,11 +113,19 @@ class InputParser:
                 actuators = plc['actuators']
 
                 for actuator in actuators:
+                    actuator_index = 0
+
+                    #todo: Is there a better way to do this? We need to get the initial status of the actuator
+                    for i in range(len(self.data['actuators'])):
+                        if self.data['actuators'][i] == actuator:
+                            actuator_index = 0
+                            break
+
                     a_control = {
                         "type": 'SCADA',
-                        "value": 0,
+                        "value": 1,
                         "actuator": actuator,
-                        "action": None
+                        "action": self.data['actuators'][actuator_index]['initial_state']
                     }
 
                     controls.append(a_control)

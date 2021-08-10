@@ -19,6 +19,7 @@ class Control:
         self.actuator = actuator
         self.action = action
         self.value = value
+        #self.logger = get_logger('debug')
 
     @abstractmethod
     def apply(self, generic_plc, scada_ip):
@@ -134,12 +135,16 @@ class SCADAControl(Control):
 
         for i in range(self.SCADA_POLL_TRIES):
             try:
-                actuator_status = int(generic_plc.receive((self.actuator, 1), scada_ip))
-                generic_plc.set((self.actuator, 1), actuator_status)
+                actuator_status = float(generic_plc.receive((self.actuator, 1), scada_ip))
+                #self.logger.debug('received from SCADA for ' + self.actuator + ' ' + str(actuator_status))
+                generic_plc.set((self.actuator, 1), int(actuator_status))
+                #self.logger.debug('set: ' + str(self.actuator) + ' to ' + str(actuator_status))
                 return
             except Exception as e:
+                #self.logger.debug('exception!, retry: ' + str(i))
                 time.sleep(self.SCADA_CONTROL_SLEEP_TIME)
                 continue
 
+        #self.logger.debug('because error, set: ' + str(self.actuator) + ' to ' + str(previous_value))
         generic_plc.set((self.actuator, 1), previous_value)
 

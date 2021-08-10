@@ -169,7 +169,6 @@ class GenericScada(BasePLC):
         self.logger.debug('SCADA enters pre_loop')
 
         if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
-            self.logger.debug("Initializing actuators values")
             self.send_actuator_values_flag = True
             self.actuators_state_lock = threading.Lock()
             self.init_actuator_values()
@@ -334,12 +333,15 @@ class GenericScada(BasePLC):
 
         if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
             self.actuator_status_cache = {}
+            self.sendable_tags = []
             for actuator in self.intermediate_yaml['actuators']:
                 if actuator['initial_state'].lower() == 'open':
                     self.actuator_status_cache[actuator['name']] = 1
                 else:
                     self.actuator_status_cache[actuator['name']] = 0
-            self.logger.debug('Initialized the actuators_status_cache with: ' + str(self.actuator_status_cache))
+                self.sendable_tags.append((actuator['name'], 1))
+            #self.logger.debug('Initialized the actuators_status_cache with: ' + str(self.actuator_status_cache))
+            #self.logger.debug('Tags for send are: ' + str(self.sendable_tags))
 
     def update_actuator_values(self):
         """
@@ -350,9 +352,9 @@ class GenericScada(BasePLC):
             for actuator in self.intermediate_yaml['actuators']:
                 if self.actuator_status_cache[actuator['name']] == 1:
                     self.actuator_status_cache[actuator['name']] = 0
-                if self.actuator_status_cache[actuator['name']] == 0:
+                elif self.actuator_status_cache[actuator['name']] == 0:
                     self.actuator_status_cache[actuator['name']] = 1
-                self.logger.debug('Updated the actuators_status_cache with: ' + str(self.actuator_status_cache))
+            #self.logger.debug('Updated the actuators_status_cache with: ' + str(self.actuator_status_cache))
 
     def send_actuator_values(self, a, b):
         """
@@ -360,8 +362,10 @@ class GenericScada(BasePLC):
         Method running on a thread that sends the actuator status for the PLCs to query
         """
         while self.send_actuator_values_flag:
-            #self.logger.debug('sending actuators values: ' + str(self.actuator_status_cache))
-            self.send_multiple(self.actuator_status_cache.keys(), self.actuator_status_cache.values(),
+            #self.logger.debug('sending actuators tags: ' + str(self.sendable_tags))
+            #self.logger.debug('sending actuators values: ' + str(self.actuator_status_cache.values()))
+            # We possible need to do (tag,1) here.
+            self.send_multiple(self.sendable_tags, self.actuator_status_cache.values(),
                                self.intermediate_yaml['scada']['local_ip'],)
             time.sleep(0.05)
 
