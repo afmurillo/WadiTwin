@@ -577,6 +577,10 @@ class PhysicalPlant:
         self.logger.info("Starting epynet simulation")
         simulation_duration = iteration_limit*self.simulation_step
         self.wn.set_time_params(duration=simulation_duration, hydraulic_step=self.simulation_step)
+
+        self.logger.info('duration: ' + str(simulation_duration))
+        self.logger.info('step: ' + str(self.simulation_step))
+
         self.wn.init_simulation(interactive=True)
         internal_epynet_step = 1
         simulation_time = 0

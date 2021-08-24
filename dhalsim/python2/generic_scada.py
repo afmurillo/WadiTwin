@@ -5,6 +5,7 @@ import random
 import signal
 import sqlite3
 import sys
+import subprocess
 import time
 from collections import OrderedDict
 from datetime import datetime
@@ -19,6 +20,7 @@ from py2_logger import get_logger
 import threading
 import thread
 
+empty_loc = '/dev/null'
 
 
 class Error(Exception):

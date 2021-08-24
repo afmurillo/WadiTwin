@@ -62,10 +62,12 @@ class Runner():
         db_initializer.drop()
         db_initializer.write()
         db_initializer.print()
+
         automatic_run_path = Path(__file__).parent.absolute() / "python2" / "automatic_run.py"
         self.automatic_run = subprocess.Popen(
             ["python2", str(automatic_run_path), str(intermediate_yaml_path)])
         self.automatic_run.wait()
+
 
 def main():
     parser = argparse.ArgumentParser(description='Executes DHALSIM based on a config file')

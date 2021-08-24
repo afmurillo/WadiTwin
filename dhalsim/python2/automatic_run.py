@@ -76,6 +76,7 @@ class GeneralCPS(MiniCPS):
         self.scada_process = None
         self.plant_process = None
         self.attacker_processes = None
+        self.control_agent_process = None
 
         self.automatic_start()
         self.poll_processes()
@@ -125,6 +126,13 @@ class GeneralCPS(MiniCPS):
 
         self.logger.debug("Launched the plant processes.")
 
+        if 'DQN_Control' in self.data:
+            automatic_agent_path = Path(__file__).parent.absolute() / "automatic_control_agent.py"
+            cmd = ["python2", str(automatic_agent_path), str(self.intermediate_yaml)]
+            self.control_agent_process = subprocess.Popen(cmd, stderr=sys.stderr, stdout=sys.stdout)
+
+        self.logger.debug("Launched the control agent processes.")
+
     def poll_processes(self):
         """Polls for all processes and finishes if one closes"""
         processes = []
@@ -132,6 +140,7 @@ class GeneralCPS(MiniCPS):
         processes.extend(self.attacker_processes)
         processes.append(self.scada_process)
         processes.append(self.plant_process)
+        processes.append(self.control_agent_process)
         # We wait until the simulation ends
         while True:
             for process in processes:
@@ -189,6 +198,12 @@ class GeneralCPS(MiniCPS):
                 self.end_process(self.plant_process)
             except Exception as msg:
                 self.logger.error("Exception shutting down plant_process: " + str(msg))
+
+        if self.control_agent_process is None:
+            try:
+                self.end_process(self.control_agent_process)
+            except Exception as msg:
+                self.logger.error("Exception shutting down control agent process: " + str(msg))
 
         cmd = 'sudo pkill -f "python2 -m cpppo.server.enip"'
         subprocess.call(cmd, shell=True, stderr=sys.stderr, stdout=sys.stdout)
