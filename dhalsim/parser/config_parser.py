@@ -312,7 +312,7 @@ class SchemaParser:
                 str,
                 Use(str.lower),
                 Or('wntr', 'epynet')),
-            Optional('DQN_Control', default=False): bool,
+            Optional('use_control_agent', default=False): bool,
         })
 
         return config_schema.validate(data)
@@ -527,8 +527,8 @@ class ConfigParser:
 
         # DQN controller is Reinforcement Q learning running at an SCADA server it modifies the behaviour of PLCs and
         # SCADA
-        if self.data['DQN_Control']:
-            yaml_data['DQN_Control'] = self.data['DQN_Control']
+        if self.data['use_control_agent']:
+            yaml_data['use_control_agent'] = self.data['use_control_agent']
 
         # Add batch mode parameters
         if self.batch_mode:

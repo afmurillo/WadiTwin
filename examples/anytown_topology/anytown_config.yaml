@@ -6,9 +6,10 @@ plcs: !include anytown_plcs.yaml
 
 simulator: epynet
 demand: pdd
-DQN_Control: True
 
-#batch_simulations: 2
+use_control_agent: True
 
-log_level: debug
+# batch_simulations: 2
+
+# log_level: debug
 

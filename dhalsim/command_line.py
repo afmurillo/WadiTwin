@@ -29,6 +29,7 @@ class Runner():
         signal.signal(signal.SIGTERM, self.sigint_handler)
 
         self.automatic_run = None
+        self.control_agent = None
 
     def sigint_handler(self, sig, frame):
         os.kill(self.automatic_run.pid, signal.SIGTERM)
@@ -37,6 +38,12 @@ class Runner():
 
     def run(self):
         config_parser = ConfigParser(self.config_file)
+
+        # Start the generic control agent process, feeding it with its configuration yaml file
+        if config_parser.data['use_control_agent']:
+            control_agent_path = Path(__file__).parent.absolute() / "control_agent" / "generic_agent.py"
+            agent_config_path = Path(__file__).parent.absolute() / "control_agent" / "agent_config.yaml"
+            self.control_agent = subprocess.Popen(["python3", str(control_agent_path), str(agent_config_path)])
 
         if config_parser.batch_mode:
             # If in batch mode, generate all intermediate yamls and simulate one by one

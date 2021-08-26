@@ -21,13 +21,16 @@ class GenericAgent:
     This agent knows the state of the network by reading the yaml file at intermediate_yaml_path and communicating
     with SCADA.
     """
-    def __init__(self, intermediate_yaml_path):
-        with intermediate_yaml_path.open() as yaml_file:
-            self.intermediate_yaml = yaml.load(yaml_file, Loader=yaml.FullLoader)
+    def __init__(self, agent_yaml_path):
+        with agent_yaml_path.open() as yaml_file:
+            self.agent_config = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
-        self.logger = get_logger(self.intermediate_yaml['log_level'])
+        self.logger = get_logger(self.agent_config['log_level'])
 
         self.logger.info('YYYYYYYEEEEEEEEEEEEEEEEEEEEEEEEEEEE NEW CONTROL AGENT!!!!')
+
+        self.logger.info(str(self.agent_config['name']) + ':  ' + str(self.agent_config['stuff']))
+
         time.sleep(1000)
 
 
@@ -47,14 +50,13 @@ def is_valid_file(parser_instance, arg):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Start everything for a scada')
-    parser.add_argument(dest="intermediate_yaml",
-                        help="intermediate yaml file", metavar="FILE",
+    parser = argparse.ArgumentParser(description='Start the control agent process')
+    parser.add_argument(dest="agent_yaml_path",
+                        help="agent config yaml file", metavar="FILE",
                         type=lambda x: is_valid_file(parser, x))
 
     args = parser.parse_args()
 
-
-    agent = GenericAgent(intermediate_yaml_path=Path(args.intermediate_yaml))
+    agent = GenericAgent(agent_yaml_path=Path(args.agent_yaml_path))
 
 
