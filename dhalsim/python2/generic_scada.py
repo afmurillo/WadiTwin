@@ -350,6 +350,8 @@ class GenericScada(BasePLC):
         This method is only called if the global parameter control is set to DQN_Control
         Method only for testing
         """
+
+        #todo: This function subscribes to the control agent publisher to get each actuator status
         with self.actuators_state_lock:
             for actuator in self.intermediate_yaml['actuators']:
                 if self.actuator_status_cache[actuator['name']] == 1:
