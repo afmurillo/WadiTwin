@@ -41,25 +41,40 @@ class Runner():
     def run(self):
         config_parser = ConfigParser(self.config_file)
 
-        # Start the generic control agent process, feeding it with its configuration yaml file
-        if config_parser.data['use_control_agent']:
-            control_agent_path = Path(__file__).parent.absolute() / "control_agent" / "generic_agent.py"
-            agent_config_path = Path(__file__).parent.absolute() / "control_agent" / "agent_config.yaml"
-            self.control_agent = subprocess.Popen(["python3", str(control_agent_path), str(agent_config_path)])
-            # self.control_agent.wait()
-
         if config_parser.batch_mode:
             # If in batch mode, generate all intermediate yamls and simulate one by one
             yaml_paths = []
             for batch_index in range(config_parser.batch_simulations):
                 config_parser.batch_index = batch_index
                 yaml_paths.append(config_parser.generate_intermediate_yaml())
+
+            # Start the generic control agent process, feeding it with its configuration yaml file
+            if config_parser.data['use_control_agent']:
+                control_agent_path = Path(__file__).parent.absolute() / "control_agent" / "generic_agent.py"
+                agent_config_path = Path(__file__).parent.absolute() / "control_agent" / "agent_config.yaml"
+
+                yamls_paths = open("yamls.txt", "w")
+                with open('yamls.txt') as file:
+                    for path in yaml_paths:
+                        file.write(path)
+
+                self.control_agent = subprocess.Popen(["python3", str(control_agent_path), str(agent_config_path),
+                                                       yamls_paths])
+                # self.control_agent.wait()
+
             for yaml_path in yaml_paths:
                 self.run_simulation(yaml_path)
         else:
             # Else generate the one we need and run the simulation
             intermediate_yaml_path = config_parser.generate_intermediate_yaml()
+            if config_parser.data['use_control_agent']:
+                control_agent_path = Path(__file__).parent.absolute() / "control_agent" / "generic_agent.py"
+                agent_config_path = Path(__file__).parent.absolute() / "control_agent" / "agent_config.yaml"
+                self.control_agent = subprocess.Popen(["python3", str(control_agent_path), str(agent_config_path),
+                                                       intermediate_yaml_path])
+
             self.run_simulation(intermediate_yaml_path)
+
 
         # Killing the control agent process
         self.control_agent.send_signal(signal.SIGINT)
