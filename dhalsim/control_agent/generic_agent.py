@@ -27,11 +27,11 @@ class GenericAgent:
 
         self.logger = get_logger(self.agent_config['log_level'])
 
+        # Debug prints to see if it works
+        # TODO: delete these lines
         self.logger.info('YYYYYYYEEEEEEEEEEEEEEEEEEEEEEEEEEEE NEW CONTROL AGENT!!!!')
-
         self.logger.info(str(self.agent_config['name']) + ':  ' + str(self.agent_config['stuff']))
 
-        time.sleep(1000)
 
 
 
