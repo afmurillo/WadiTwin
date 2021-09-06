@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import subprocess
 import time
+import zmq
 from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
@@ -59,6 +60,10 @@ class GenericScada(BasePLC):
             self.intermediate_yaml = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
         self.logger = get_logger(self.intermediate_yaml['log_level'])
+        self.logger.info("WOOOOO SCADA")
+        self.socket = None
+        self.start_client()
+
         # Initialize connection to the database
         self.initialize_db()
 
@@ -289,6 +294,16 @@ class GenericScada(BasePLC):
             plcs[PLC['public_ip']] = tags
 
         return plcs
+
+    def start_client(self):
+        """
+        Start the SCADA client which has to communicate with the control agent server
+        """
+        context = zmq.Context()
+        self.logger.info("CONNECTING TO CONTROL AGENT SERVER...")
+        self.socket = context.socket(zmq.REQ)
+        self.socket.connect("tcp://localhost:%s" % 5556)
+        self.socket.send('HELLO')
 
     def get_master_clock(self):
         """

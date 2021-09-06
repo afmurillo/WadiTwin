@@ -1,3 +1,4 @@
 name: dqn
 stuff: flowers
 log_level: info
+socket_port: 5556

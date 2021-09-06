@@ -17,3 +17,5 @@ demand: pdd
 #        type: below
 #        value: 2.6
 #      type: naive_mitm
+
+use_control_agent: True
