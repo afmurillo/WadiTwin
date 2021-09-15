@@ -330,6 +330,7 @@ class ConfigParser:
         self.batch_index = None
         self.yaml_path = None
         self.db_path = None
+        self.control_problem_directory = None
 
         self.config_path = config_path.absolute()
 
@@ -349,6 +350,11 @@ class ConfigParser:
         self.batch_mode = 'batch_simulations' in self.data
         if self.batch_mode:
             self.batch_simulations = self.data['batch_simulations']
+
+        if self.data['use_control_agent']:
+            self.control_problem_directory = self.control_problem_path
+
+        print(self.data)
 
     @staticmethod
     def do_checks(data: dict):
@@ -429,6 +435,18 @@ class ConfigParser:
         return path
 
     @property
+    def control_problem_path(self):
+        """
+        Generates the temporary directory for the control agent database
+        """
+        # Create temp directory and intermediate yaml files in /tmp/
+        temp_directory = tempfile.mkdtemp(prefix='dhalsimRL_')
+        # Change read permissions in tempdir
+        os.chmod(temp_directory, 0o775)
+        return temp_directory
+
+
+    @property
     def demand_patterns(self):
         """
         Function that returns path to demand pattern csv
@@ -496,9 +514,14 @@ class ConfigParser:
     def generate_temporary_dirs(self):
         """Generates the temporary directory and yaml/db paths"""
         # Create temp directory and intermediate yaml files in /tmp/
-        temp_directory = tempfile.mkdtemp(prefix='dhalsim_')
+        if self.data['use_control_agent']:
+            temp_directory = tempfile.mkdtemp(prefix='dhalsim_', dir=Path(self.control_problem_directory))
+        else:
+            temp_directory = tempfile.mkdtemp(prefix='dhalsim_')
         # Change read permissions in tempdir
         os.chmod(temp_directory, 0o775)
+        print("temp_folder: ", temp_directory)
+
         self.yaml_path = Path(temp_directory + '/intermediate.yaml')
         self.db_path = temp_directory + '/dhalsim.sqlite'
 
@@ -528,6 +551,7 @@ class ConfigParser:
         # DQN controller is Reinforcement Q learning running at an SCADA server it modifies the behaviour of PLCs and
         # SCADA
         if self.data['use_control_agent']:
+            yaml_data['db_control_path'] = self.control_problem_directory + 'db_control.sqlite'
             yaml_data['use_control_agent'] = self.data['use_control_agent']
 
         # Add batch mode parameters

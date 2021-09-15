@@ -3,6 +3,7 @@ import csv
 import os.path
 import random
 import signal
+import socket
 import sqlite3
 import sys
 import subprocess
@@ -11,6 +12,7 @@ import zmq
 from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
+from socket import *
 
 from pathlib import Path
 
@@ -62,13 +64,17 @@ class GenericScada(BasePLC):
         self.logger = get_logger(self.intermediate_yaml['log_level'])
         self.logger.info("WOOOOO SCADA")
         self.socket = None
-        self.start_client()
+        # self.start_client()
+        # self.other_client()
 
-        # Initialize connection to the database
+        # Initialize connection to the databases (also control_db if used)
+        self.conn = None
+        self.cur = None
+        self.control_conn = None
+        self.control_cur = None
         self.initialize_db()
 
         self.output_path = Path(self.intermediate_yaml["output_path"]) / "scada_values.csv"
-
         self.output_path.touch(exist_ok=True)
 
         # Create state from db values
@@ -118,6 +124,27 @@ class GenericScada(BasePLC):
         """
         super(GenericScada, self).__init__(name='scada', state=state, protocol=scada_protocol)
 
+    def start_client(self):
+        """
+        Start the SCADA client which has to communicate with the control agent server
+        """
+        context = zmq.Context()
+        self.logger.info("CONNECTING TO SWITCH...")
+        self.socket = context.socket(zmq.REQ)
+        # localhost = self.intermediate_yaml['scada']['local_ip']
+        # self.logger.info("Localhost: " + str(localhost))
+        self.socket.connect("tcp://0.0.0.0:5555")
+        self.logger.info("CONNECTED")
+        self.socket.send('HELLO')
+        #message = self.socket.recv()
+
+    def other_client(self):
+        self.socket = socket(AF_INET, SOCK_STREAM)
+        self.logger.info('OTHER SOCKET CLIENT...')
+        self.socket.setsockopt(SOL_SOCKET, 25, 'enp0s8'+'\0')
+        self.socket.connect(('localhost', 5556))
+        self.socket.send(b'HELLO')
+
     def initialize_db(self):
         """
         Function that initializes PLC connection to the database
@@ -125,6 +152,10 @@ class GenericScada(BasePLC):
         """
         self.conn = sqlite3.connect(self.intermediate_yaml["db_path"])
         self.cur = self.conn.cursor()
+
+        if self.intermediate_yaml['use_control_agent']:
+            self.control_conn = sqlite3.connect(self.intermediate_yaml['db_control_path'])
+            self.control_cur = self.control_conn.cursor()
 
     @staticmethod
     def generate_real_tags(plcs):
@@ -175,7 +206,7 @@ class GenericScada(BasePLC):
         """
         self.logger.debug('SCADA enters pre_loop')
 
-        if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+        if self.intermediate_yaml['use_control_agent']:
             self.send_actuator_values_flag = True
             self.actuators_state_lock = threading.Lock()
             self.init_actuator_values()
@@ -218,7 +249,7 @@ class GenericScada(BasePLC):
             "Failed to connect to db. Tried {i} times.".format(i=self.DB_TRIES))
         raise DatabaseError("Failed to get master clock from database")
 
-    def get_sync(self):
+    def get_sync(self, cur):
         """
         Get the sync flag of the scada.
         On a :code:`sqlite3.OperationalError` it will retry with a max of :code:`DB_TRIES` tries.
@@ -230,7 +261,7 @@ class GenericScada(BasePLC):
            :code:`DB_TRIES` tries.
         """
         self.db_query("SELECT flag FROM sync WHERE name IS 'scada'")
-        flag = bool(self.cur.fetchone()[0])
+        flag = bool(cur.fetchone()[0])
         return flag
 
     def set_sync(self, flag):
@@ -295,16 +326,6 @@ class GenericScada(BasePLC):
 
         return plcs
 
-    def start_client(self):
-        """
-        Start the SCADA client which has to communicate with the control agent server
-        """
-        context = zmq.Context()
-        self.logger.info("CONNECTING TO CONTROL AGENT SERVER...")
-        self.socket = context.socket(zmq.REQ)
-        self.socket.connect("tcp://localhost:%s" % 5556)
-        self.socket.send('HELLO')
-
     def get_master_clock(self):
         """
         Get the value of the master clock of the physical process through the database.
@@ -348,7 +369,7 @@ class GenericScada(BasePLC):
         Reads intermediate_yaml and initializes the actuators with the values defined in [STATUS] section of .inp file
         """
 
-        if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+        if self.intermediate_yaml['use_control_agent']:
             self.actuator_status_cache = {}
             self.sendable_tags = []
             for actuator in self.intermediate_yaml['actuators']:

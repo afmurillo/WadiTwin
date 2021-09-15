@@ -74,6 +74,7 @@ class GeneralCPS(MiniCPS):
 
         self.plc_processes = None
         self.scada_process = None
+        self.scada_switch_process = None
         self.plant_process = None
         self.attacker_processes = None
 
@@ -101,6 +102,15 @@ class GeneralCPS(MiniCPS):
                 self.plc_processes.append(node.popen(cmd, stderr=sys.stderr, stdout=sys.stdout))
 
         self.logger.info("Launched the PLCs processes.")
+
+        """
+        scada_switch_path = Path(__file__).parent.absolute() / "scada_switch.py"
+        scada_switch_cmd = ["python2", str(scada_switch_path), str(self.intermediate_yaml)]
+        self.scada_switch_process = self.net.get(self.data['scada']['switch_name']).popen(
+            scada_switch_cmd, stderr=sys.stderr, stdout=sys.stdout)
+
+        self.logger.info("Launched the SCADA switch process.")
+        """
 
         automatic_scada_path = Path(__file__).parent.absolute() / "automatic_scada.py"
         scada_cmd = ["python2", str(automatic_scada_path), str(self.intermediate_yaml)]
@@ -131,6 +141,8 @@ class GeneralCPS(MiniCPS):
         processes.extend(self.plc_processes)
         processes.extend(self.attacker_processes)
         processes.append(self.scada_process)
+        if self.scada_switch_process:
+            processes.append(self.scada_switch_process)
         processes.append(self.plant_process)
         # We wait until the simulation ends
         while True:
@@ -169,6 +181,13 @@ class GeneralCPS(MiniCPS):
                 self.end_process(self.scada_process)
             except Exception as msg:
                 self.logger.error("Exception shutting down SCADA: " + str(msg))
+
+        if self.scada_switch_process:
+            if self.scada_switch_process.poll() is None:
+                try:
+                    self.end_process(self.scada_switch_process)
+                except Exception as msg:
+                    self.logger.error("Exception shutting down SCADA switch: " + str(msg))
 
         for plc_process in self.plc_processes:
             if plc_process.poll() is None:

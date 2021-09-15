@@ -18,7 +18,6 @@ class DatabaseInitializer:
         self.db_path.touch(exist_ok=True)
         self.logger.info("Initializing database.")
 
-
     def write(self):
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
@@ -103,6 +102,100 @@ class DatabaseInitializer:
             self.logger.debug(pd.read_sql_query("SELECT * FROM master_time;", conn))
             self.logger.debug(pd.read_sql_query("SELECT * FROM sync;", conn))
             self.logger.debug(pd.read_sql_query("SELECT * FROM attack;", conn))
+
+
+class ControlDatabase:
+    """
+    Database used to connect SCADA process with control agent process.
+    """
+    def __init__(self, agent_yaml_path: Path, intermediate_yaml_path: Path):
+        with agent_yaml_path.open(mode='r') as file:
+            self.agent_config = yaml.safe_load(file)
+        with intermediate_yaml_path.open(mode='r') as file:
+            self.data = yaml.safe_load(file)
+
+        self.logger = get_logger(self.data['log_level'])
+        self.db_path = Path(self.data["db_control_path"])
+        self.db_path.touch(exist_ok=True)
+        self.logger.info("Initializing control agent database.")
+
+        self.drop()
+        self.create_table()
+        self.print()
+
+    def create_table(self):
+        """
+        Create the database table with the field for the action variables and the space varaibles
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+
+            # Table of the observation space with the variables the scada sends to control agent
+            cur.execute("""CREATE TABLE state_space (
+                                node        TEXT      NOT NULL,
+                                property    TEXT      NOT NULL,
+                                value       INTEGER   NOT NULL,
+                                PRIMARY KEY (node, property)
+                            );""")
+
+            # Initialization of state_space table
+            for var in self.agent_config["init_db"]['state_space']:
+                cur.execute("INSERT INTO state_space VALUES (?, ?, ?);",
+                            (var['node'], var["property"], var['initial_value']))
+
+            # Table of the action space with status of actuators sent by the control agent to the scada
+            cur.execute("""CREATE TABLE action_space (
+                                node        TEXT      NOT NULL,
+                                property    TEXT      NOT NULL,
+                                value       INTEGER   NOT NULL,
+                                PRIMARY KEY (node, property)
+                            );""")
+
+            # Initialization of action_space table
+            for var in self.agent_config["init_db"]['action_space']:
+                cur.execute("INSERT INTO action_space VALUES (?, ?, ?);",
+                            (var['node'], var["property"], var['initial_value']))
+
+            # Table of simulation clock time
+            cur.execute("CREATE TABLE master_time (id INTEGER PRIMARY KEY, time INTEGER);")
+
+            # Initialization of master_time table
+            cur.execute("INSERT INTO master_time VALUES (1, 0);")
+
+            # Table of synchronization flag
+            cur.execute("""CREATE TABLE sync (
+                                name TEXT   NOT NULL,
+                                flag INT    NOT NULL,
+                                PRIMARY KEY (name)
+                            );""")
+
+            # Initialization of the sync table
+            cur.execute("INSERT INTO sync VALUES ('scada', 1);")
+            cur.execute("INSERT INTO sync VALUES ('agent', 1);")
+
+            conn.commit()
+
+    def drop(self):
+        """
+        Delete already existing tables if any
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            cur.execute("DROP TABLE IF EXISTS state_space;")
+            cur.execute("DROP TABLE IF EXISTS action_space;")
+            cur.execute("DROP TABLE IF EXISTS master_time;")
+            cur.execute("DROP TABLE IF EXISTS sync;")
+            conn.commit()
+
+    def print(self):
+        """
+        Print the tables of the control database
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            self.logger.info(pd.read_sql_query("SELECT * FROM state_space;", conn))
+            self.logger.info(pd.read_sql_query("SELECT * FROM action_space;", conn))
+            self.logger.info(pd.read_sql_query("SELECT * FROM master_time;", conn))
+            self.logger.info(pd.read_sql_query("SELECT * FROM sync;", conn))
 
 
 def is_valid_file(file_parser, arg):

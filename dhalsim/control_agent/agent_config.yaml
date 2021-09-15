@@ -1,4 +1,85 @@
-name: dqn
-stuff: flowers
 log_level: info
-socket_port: 5556
+
+init_db:
+    state_space:
+        - node: 'time'
+          property: 'hour'
+          initial_value: 0
+        - node: 'time'
+          property: 'day'
+          initial_value: 1
+        - node: 'T41'
+          property: 'pressure'
+          initial_value: 0
+        - node: 'T42'
+          property: 'pressure'
+          initial_value: 0
+        - node: 'J20'
+          property: 'pressure'
+          initial_value: 0
+    action_space:
+        - node: 'P78'
+          property: 'status'
+          initial_value: 0
+        - node: 'P79'
+          property: 'status'
+          initial_value: 0
+
+env:
+    town: 'anytown_pd'
+
+    state_vars:
+        'time': 0
+        'day': 1
+        'tanks':
+            - '41'
+            - '42'
+        'junctions':
+            - '20'
+    action_vars:
+        - '78'
+        - '79'
+
+    # duration: 86400    # 1 day
+    duration: 604800    # 1 week
+    hyd_step: 600
+    pattern_step: 3600
+    # pattern_file: null
+    pattern_file: '../../demand_patterns/demands_anytown.csv'
+    seed: null
+    # update_every: 14400     # 4hours
+    update_every: null
+    bounds:
+        time:
+            min: 0
+            max: 86400
+        day:
+            min: 1
+            max: 7
+        41_level:
+            min: 0
+            max: 20
+        42_level:
+            min: 0
+            max: 20
+        20_pressure:
+            min: 10
+            max: 100
+
+agent:
+    name: dqn
+    batch_size: 64
+    target_update_frequency: 10
+    initial_replay_memory: 2100
+    max_replay_size: 10000
+
+nn:
+    hidden_size: 8
+
+optimizer:
+    lr: .00025
+
+learning:
+    epochs: 5
+    train_episodes: 5
+    train_frequency: 4

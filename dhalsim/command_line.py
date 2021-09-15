@@ -71,16 +71,17 @@ class Runner():
             self.run_simulation(intermediate_yaml_path)
 
         # Killing the control agent process at the end of the simulations
-        self.control_agent.send_signal(signal.SIGINT)
-        self.control_agent.wait()
-        if self.control_agent.poll() is None:
-            self.control_agent.terminate()
-        if self.control_agent.poll() is None:
-            self.control_agent.kill()
+        if self.control_agent is not None:
+            self.control_agent.send_signal(signal.SIGINT)
+            self.control_agent.wait()
+            if self.control_agent.poll() is None:
+                self.control_agent.terminate()
+            if self.control_agent.poll() is None:
+                self.control_agent.kill()
 
     def run_simulation(self, intermediate_yaml_path):
 
-        subprocess.run(["sudo", "pkill - f - u", "root", "python -m cpppo.server.enip"])
+        subprocess.run(["sudo", "pkill -f -u", "root", "python -m cpppo.server.enip"])
         subprocess.run(["sudo", "mn", "-c"])
 
         InputFilesCopier(self.config_file, intermediate_yaml_path).copy_input_files()

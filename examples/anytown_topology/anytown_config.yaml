@@ -7,8 +7,10 @@ plcs: !include anytown_plcs.yaml
 simulator: epynet
 demand: pdd
 
-use_control_agent: True
+#use_control_agent: True
 
 # batch_simulations: 2
 # log_level: debug
+
+# mininet_cli: True
 

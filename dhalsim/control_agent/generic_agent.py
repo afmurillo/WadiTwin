@@ -14,6 +14,7 @@ import random
 import yaml
 
 from dhalsim.py3_logger import get_logger
+from dhalsim.init_database import ControlDatabase
 
 
 class GenericAgent:
@@ -35,10 +36,12 @@ class GenericAgent:
         # Debug prints to see if it works
         # TODO: delete these lines
         self.logger.info('YYYYYYYEEEEEEEEEEEEEEEEEEEEEEEEEEEE NEW CONTROL AGENT!!!!')
-        self.logger.info(str(self.agent_config['name']) + ':  ' + str(self.agent_config['stuff']))
+
+        self.control_db = ControlDatabase(agent_yaml_path, Path(intermediate_yaml_paths[0]))
 
         self.socket = None
-        self.port = self.agent_config['socket_port']
+        self.port = 5556
+        # self.start_server()
 
     def start_server(self):
         """
@@ -46,19 +49,21 @@ class GenericAgent:
         """
         context = zmq.Context()
         self.socket = context.socket(zmq.REP)
-        self.socket.bind("tcp://*:%s" % self.port)
+        self.socket.bind(f"tcp://*:{self.port}")
+        self.logger.info('Starting control agent server...')
+        self.main_loop()
 
     def main_loop(self):
         """
 
         """
         while True:
+            self.logger.info('MAIN LOOP')
             #  Wait for next request from client
             message = self.socket.recv()
             self.logger.info("Received message: " + str(message))
             time.sleep(1)
-            # self.socket.send("World from %s" % self.port)
-
+            self.socket.send_string("World from %s" % self.port)
 
 
 def is_valid_file(parser_instance, arg):

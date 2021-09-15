@@ -55,7 +55,6 @@ sudo python2 -m pip install .
 sudo pip install pathlib==1.0.*
 sudo pip install pyyaml==5.3.*
 sudo pip install numpy==1.16.*
-#sudo pip install pyzmq==22.2.*
 
 # Mininet from source
 cd ~
