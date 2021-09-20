@@ -24,7 +24,7 @@ class GenericAgent:
     with SCADA.
     """
     def __init__(self, agent_yaml_path, intermediate_yaml_paths):
-        with agent_yaml_path.open() as yaml_file:
+        with agent_yaml_path.open(mode='r') as yaml_file:
             self.agent_config = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
         self.logger = get_logger(self.agent_config['log_level'])
@@ -33,37 +33,26 @@ class GenericAgent:
         for i, yaml_path in enumerate(intermediate_yaml_paths):
             self.logger.debug(str(i) + ': ' + str(yaml_path))
 
+        # Read the first intermediate yaml to get db_path
+        self.intermediate_yaml_data = None
+        with Path(intermediate_yaml_paths[0]).open(mode='r') as yaml_file:
+            self.intermediate_yaml_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
+
+        self.control_db_path = self.intermediate_yaml_data['db_control_path']
+
         # Debug prints to see if it works
         # TODO: delete these lines
         self.logger.info('YYYYYYYEEEEEEEEEEEEEEEEEEEEEEEEEEEE NEW CONTROL AGENT!!!!')
 
         self.control_db = ControlDatabase(agent_yaml_path, Path(intermediate_yaml_paths[0]))
+        self.conn = sqlite3.connect(self.intermediate_yaml_data['db_control_path'])
+        self.cur = self.conn.cursor()
 
-        self.socket = None
-        self.port = 5556
-        # self.start_server()
-
-    def start_server(self):
+    def get_scada_ready(self):
         """
-        Start the agent server which will receive data from SCADA client
+        Check if scada has sent
         """
-        context = zmq.Context()
-        self.socket = context.socket(zmq.REP)
-        self.socket.bind(f"tcp://*:{self.port}")
-        self.logger.info('Starting control agent server...')
-        self.main_loop()
-
-    def main_loop(self):
-        """
-
-        """
-        while True:
-            self.logger.info('MAIN LOOP')
-            #  Wait for next request from client
-            message = self.socket.recv()
-            self.logger.info("Received message: " + str(message))
-            time.sleep(1)
-            self.socket.send_string("World from %s" % self.port)
+        pass
 
 
 def is_valid_file(parser_instance, arg):

@@ -63,9 +63,6 @@ class GenericScada(BasePLC):
 
         self.logger = get_logger(self.intermediate_yaml['log_level'])
         self.logger.info("WOOOOO SCADA")
-        self.socket = None
-        # self.start_client()
-        # self.other_client()
 
         # Initialize connection to the databases (also control_db if used)
         self.conn = None
@@ -73,6 +70,28 @@ class GenericScada(BasePLC):
         self.control_conn = None
         self.control_cur = None
         self.initialize_db()
+
+        # Tags of state and action variables with their translations
+        self.vars_dict = {'action_vars': {}, 'state_vars': {}}
+        self.create_vars_translation_dict()
+
+        # Control database prepared statement
+        self._table_name = ['state_space', 'action_space']
+        self._value = 'value'
+        self._what = tuple()
+        self._set_query = None
+        self._get_query = None
+
+        self._init_what()
+
+        if not self._what:
+            raise ValueError('Primary key not found.')
+        else:
+            self._init_get_query()
+            self._init_set_query()
+
+        #TODO: comment
+        self.logger.info(self._what)
 
         self.output_path = Path(self.intermediate_yaml["output_path"]) / "scada_values.csv"
         self.output_path.touch(exist_ok=True)
@@ -123,27 +142,6 @@ class GenericScada(BasePLC):
         Introduced to better facilitate testing
         """
         super(GenericScada, self).__init__(name='scada', state=state, protocol=scada_protocol)
-
-    def start_client(self):
-        """
-        Start the SCADA client which has to communicate with the control agent server
-        """
-        context = zmq.Context()
-        self.logger.info("CONNECTING TO SWITCH...")
-        self.socket = context.socket(zmq.REQ)
-        # localhost = self.intermediate_yaml['scada']['local_ip']
-        # self.logger.info("Localhost: " + str(localhost))
-        self.socket.connect("tcp://0.0.0.0:5555")
-        self.logger.info("CONNECTED")
-        self.socket.send('HELLO')
-        #message = self.socket.recv()
-
-    def other_client(self):
-        self.socket = socket(AF_INET, SOCK_STREAM)
-        self.logger.info('OTHER SOCKET CLIENT...')
-        self.socket.setsockopt(SOL_SOCKET, 25, 'enp0s8'+'\0')
-        self.socket.connect(('localhost', 5556))
-        self.socket.send(b'HELLO')
 
     def initialize_db(self):
         """
@@ -218,7 +216,7 @@ class GenericScada(BasePLC):
         self.cache_update_process = None
         time.sleep(sleep)
 
-    def db_query(self, query, parameters=None):
+    def db_query(self, query, cur, parameters=None):
         """
         Execute a query on the database
         On a :code:`sqlite3.OperationalError` it will retry with a max of :code:`DB_TRIES` tries.
@@ -228,6 +226,9 @@ class GenericScada(BasePLC):
         :param query: The SQL query to execute in the db
         :type query: str
 
+        :param cur: cursor of the database (data_db or control_db)
+        :type cur: sqlite3.Connection
+
         :param parameters: The parameters to put in the query. This must be a tuple.
 
         :raise DatabaseError: When a :code:`sqlite3.OperationalError` is still raised after
@@ -236,9 +237,9 @@ class GenericScada(BasePLC):
         for i in range(self.DB_TRIES):
             try:
                 if parameters:
-                    self.cur.execute(query, parameters)
+                    cur.execute(query, parameters)
                 else:
-                    self.cur.execute(query)
+                    cur.execute(query)
                 return
             except sqlite3.OperationalError as exc:
                 self.logger.info(
@@ -249,22 +250,31 @@ class GenericScada(BasePLC):
             "Failed to connect to db. Tried {i} times.".format(i=self.DB_TRIES))
         raise DatabaseError("Failed to get master clock from database")
 
-    def get_sync(self, cur):
+    def get_sync(self, use_control_db=False):
         """
         Get the sync flag of the scada.
         On a :code:`sqlite3.OperationalError` it will retry with a max of :code:`DB_TRIES` tries.
         Before it reties, it will sleep for :code:`DB_SLEEP_TIME` seconds.
+
+        :param use_control_db: True to use control_db, False otherwise
+        :type use_control_db: bool
 
         :return: False if physical process wants the plc to do a iteration, True if not.
 
         :raise DatabaseError: When a :code:`sqlite3.OperationalError` is still raised after
            :code:`DB_TRIES` tries.
         """
-        self.db_query("SELECT flag FROM sync WHERE name IS 'scada'")
-        flag = bool(cur.fetchone()[0])
+        # Get sync from control_db
+        if use_control_db:
+            self.db_query("SELECT flag FROM sync WHERE name IS 'agent'", cur=self.control_cur)
+            flag = bool(self.control_cur.fetchone()[0])
+        # Get sync from data_db
+        else:
+            self.db_query("SELECT flag FROM sync WHERE name IS 'scada'", cur=self.cur)
+            flag = bool(self.cur.fetchone()[0])
         return flag
 
-    def set_sync(self, flag):
+    def set_sync(self, flag=None, use_control_db=False):
         """
         Set the scada's sync flag in the sync table. When this is 1, the physical process
         knows that the scada finished the requested iteration.
@@ -272,14 +282,23 @@ class GenericScada(BasePLC):
         Before it reties, it will sleep for :code:`DB_SLEEP_TIME` seconds.
 
         :param flag: True for sync to 1, False for sync to 0
-        :type flag: bool
+        :type flag: int (0 or 1)
+
+        :param use_control_db: True to use control_db, False otherwise
+        :type use_control_db: bool
 
         :raise DatabaseError: When a :code:`sqlite3.OperationalError` is still raised after
            :code:`DB_TRIES` tries.
         """
-        self.db_query("UPDATE sync SET flag=? WHERE name IS 'scada'",
-                         (int(flag),))
-        self.conn.commit()
+        # Set sync for control_db
+        if use_control_db:
+            self.db_query("UPDATE sync SET flag=1 WHERE name IS 'scada'", cur=self.control_cur)
+            self.db_query("UPDATE sync SET flag=0 WHERE name IS 'agent'", cur=self.control_cur)
+            self.control_conn.commit()
+        # Set sync for data_db
+        else:
+            self.db_query("UPDATE sync SET flag=? WHERE name IS 'scada'", cur=self.cur, parameters=(int(flag),))
+            self.conn.commit()
 
     def stop_cache_update(self):
         self.update_cache_flag = False
@@ -337,7 +356,7 @@ class GenericScada(BasePLC):
         :raise DatabaseError: When a :code:`sqlite3.OperationalError` is still raised after
            :code:`DB_TRIES` tries.
         """
-        self.db_query("SELECT time FROM master_time WHERE id IS 1")
+        self.db_query("SELECT time FROM master_time WHERE id IS 1", cur=self.cur)
         master_time = self.cur.fetchone()[0]
         return master_time
 
@@ -346,7 +365,6 @@ class GenericScada(BasePLC):
         Update the cache of the scada by receiving all the required tags.
         When something cannot be received, the previous values are used.
         """
-
         while self.update_cache_flag:
             for plc_ip in self.cache:
                 try:
@@ -365,10 +383,9 @@ class GenericScada(BasePLC):
 
     def init_actuator_values(self):
         """
-        This method is only called if the global parameter control is set to DQN_Control.
+        This method is only called if the global parameter control is set to use_control_agent.
         Reads intermediate_yaml and initializes the actuators with the values defined in [STATUS] section of .inp file
         """
-
         if self.intermediate_yaml['use_control_agent']:
             self.actuator_status_cache = {}
             self.sendable_tags = []
@@ -381,24 +398,257 @@ class GenericScada(BasePLC):
             #self.logger.debug('Initialized the actuators_status_cache with: ' + str(self.actuator_status_cache))
             #self.logger.debug('Tags for send are: ' + str(self.sendable_tags))
 
-    def update_actuator_values(self):
+    def create_vars_translation_dict(self):
         """
-        This method is only called if the global parameter control is set to DQN_Control
-        Method only for testing
+        Build the translation dictionary for the variables which will be used for the control problem.
         """
+        action_vars = []
+        state_vars = []
 
-        #todo: This function subscribes to the control agent publisher to get each actuator status
+        for i in range(len(self.intermediate_yaml['plcs'])):
+            action_vars.extend(self.intermediate_yaml['plcs'][i]['actuators'])
+            state_vars.extend(self.intermediate_yaml['plcs'][i]['sensors'])
+
+        for var in action_vars:
+            translation = self.translate_variable(var)
+            self.vars_dict['action_vars'][var] = translation
+
+        for var in state_vars:
+            translation = self.translate_variable(var)
+            self.vars_dict['state_vars'][var] = translation
+
+        self.logger.info(self.vars_dict)
+
+    @staticmethod
+    def translate_variable(var):
+        """
+        Generate the dictionary to translate the signatures of variables used in the two databases.
+        For example: J20D is split in (J20, demand) used in control database.
+
+        :param var: variable to translate
+        :type var: basestring
+
+        :return: tuple of (node, property)
+        """
+        translation_tuple = tuple()
+
+        if var[0] == 'P':
+            translation_tuple = (var, 'status')
+        elif var[0] == 'V':
+            translation_tuple = (var, 'status')
+        elif var[0] == 'T':
+            translation_tuple = (var, 'level')
+        elif var[0] == 'J':
+            if var[-1] == 'D':
+                translation_tuple = (var[:-1], 'demand')
+            else:
+                translation_tuple = (var, 'pressure')
+        return translation_tuple
+
+    def _init_what(self):
+        """
+        Save a ordered tuple of pk field names in self._what
+        """
+        query = "PRAGMA table_info(%s)" % self._table_name[0]
+
+        try:
+            self.control_cur.execute(query)
+            table_info = self.control_cur.fetchall()
+
+            # last tuple element
+            primary_keys = []
+            for field in table_info:
+                if field[-1] > 0:
+                    primary_keys.append(field)
+
+            if not primary_keys:
+                self.logger.error('Please provide at least 1 primary key. Has sqlite DB been initialized?.'
+                                  ' Aborting')
+                sys.exit(1)
+            else:
+                # sort by pk order
+                primary_keys.sort(key=lambda x: x[5])
+
+                what_list = []
+                for pk in primary_keys:
+                    what_list.append(pk[1])
+
+                self._what = tuple(what_list)
+
+        except sqlite3.Error as e:
+            self.logger.error('Error initializing the sqlite DB. Exiting. Error: ' + str(e))
+            sys.exit(1)
+
+    def _init_set_query(self):
+        """
+        Prepared statement to update state_space table.
+        """
+        set_query = 'UPDATE %s SET %s = ? WHERE %s = ?' % (
+            self._table_name[0],
+            self._value,
+            self._what[0])
+
+        # for composite pk
+        for pk in self._what[1:]:
+            set_query += ' AND %s = ?' % (
+                pk)
+
+        self._set_query = set_query
+
+    def _init_get_query(self):
+        """
+        Prepared statement to retrieve actuators status from action_space table.
+        """
+        get_query = 'SELECT %s FROM %s WHERE %s = ?' % (
+            self._value,
+            self._table_name[1],
+            self._what[0])
+
+        # for composite pk
+        for pk in self._what[1:]:
+            get_query += ' AND %s = ?' % (
+                pk)
+
+        self._get_query = get_query
+
+    def write_control_db(self, node, prop, value):
+        """
+        Set new state space values inside the state_space table.
+
+        :param node: name of the considered node
+        :type node: basestring
+
+        :param prop: property of the node we need to set
+        :type prop: basestring
+
+        :param value: value of the property
+        :type value: float
+        """
+        query_args = (value, node, prop)
+
+        for i in range(self.DB_TRIES):
+            try:
+                self.control_cur.execute(self._set_query, query_args)
+                self.control_conn.commit()
+                return query_args
+
+            except sqlite3.OperationalError as e:
+                self.logger.info('Failed writing control DB')
+                time.sleep(self.DB_SLEEP_TIME)
+
+        self.logger.error(
+            "Failed to connect to db. Tried {i} times.".format(i=self.DB_TRIES))
+        raise DatabaseError("Failed to get master clock from database")
+
+    def read_control_db(self, node, prop):
+        """
+        Read the value of the actuators status and retrieve it.
+
+        :param node: name of the considered node
+        :type node: basestring
+
+        :param prop: property of the node we need to set
+        :type prop: basestring
+
+        :return: value of the actuator status
+        """
+        query_args = (node, prop)
+
+        for i in range(self.DB_TRIES):
+            try:
+                self.control_cur.execute(self._get_query, query_args)
+                record = self.control_cur.fetchone()
+                return record[0]
+
+            except sqlite3.OperationalError as e:
+                self.logger.info('Failed reading control DB')
+                time.sleep(self.DB_SLEEP_TIME)
+
+        self.logger.error(
+            "Failed to connect to db. Tried {i} times.".format(i=self.DB_TRIES))
+        raise DatabaseError("Failed to get master clock from database")
+
+    def check_control_agent_ready(self):
+        """
+        Check if the control agent is still busy or if it has already finished the step.
+        Care that [flag==0 => busy] and [flag==1 => ready] because of the while declaration.
+        """
+        self.control_cur.execute("""SELECT flag FROM sync WHERE name=='agent';""")
+        flag = self.control_cur.fetchone()[0] == 1
+        #TODO: remove following line
+        flag = 1
+        return flag
+
+    def send_state_space(self):
+        """
+        This method interact with control database to set the new state space variables retrieved by the communication
+        with plcs.
+        """
+        # List of tuples in the following format: (var_name, new_value)
+        new_state = []
+
+        # Enumeration of variable signatures
+        for i, val in enumerate(self.saved_values[0]):
+            if val in self.vars_dict['state_vars'].keys():
+                new_state.append((val, float(self.saved_values[-1][i])))
+
+        for var in new_state:
+            node, prop = self.vars_dict['state_vars'][var[0]]
+            #self.logger.info(node)
+            #self.logger.info(prop)
+
+            self.write_control_db(node=node, prop=prop, value=var[1])
+
+        self.set_sync(use_control_db=True)
+
+    def get_control_action(self):
+        """
+        This method retrieves from control database the actions suggested by the control agent, which basically are the
+        new status of the actuators.
+
+        :return: dictionary of new actuators status
+        """
+        new_action = {}
+
+        for val in self.saved_values[0]:
+            if val in self.vars_dict['action_vars'].keys():
+                new_status = self.read_control_db(node=self.vars_dict['action_vars'][val][0],
+                                                  prop=self.vars_dict['action_vars'][val][1])
+                new_action[val] = new_status
+
+        return new_action
+
+    def execute_control_step(self):
+        """
+        This method is only called if the global parameter control is set to use_control_agent.
+        """
+        # Send new state space variables to control db
+        self.send_state_space()
+
+        while not self.check_control_agent_ready():
+            time.sleep(0.01)
+
+        # Retrieve new action space variables from control db
+        actuators_status_dict = self.get_control_action()
+        self.logger.info(actuators_status_dict)
+
+        # Update actuators status
+        with self.actuators_state_lock:
+            for actuator in actuators_status_dict.keys():
+                self.actuator_status_cache[actuator] = actuators_status_dict[actuator]
+        """
         with self.actuators_state_lock:
             for actuator in self.intermediate_yaml['actuators']:
                 if self.actuator_status_cache[actuator['name']] == 1:
                     self.actuator_status_cache[actuator['name']] = 0
                 elif self.actuator_status_cache[actuator['name']] == 0:
                     self.actuator_status_cache[actuator['name']] = 1
-            #self.logger.debug('Updated the actuators_status_cache with: ' + str(self.actuator_status_cache))
+            # self.logger.debug('Updated the actuators_status_cache with: ' + str(self.actuator_status_cache))
+        """
 
     def send_actuator_values(self, a, b):
         """
-        This method is only called if the global parameter control is set to DQN_Control
+        This method is only called if the global parameter control is set to use_control_agent.
         Method running on a thread that sends the actuator status for the PLCs to query
         """
         while self.send_actuator_values_flag:
@@ -420,7 +670,7 @@ class GenericScada(BasePLC):
         self.logger.debug("SCADA enters main_loop")
         lock = None
 
-        if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
+        if self.intermediate_yaml['use_control_agent']:
             thread.start_new_thread(self.send_actuator_values, (0, 0))
 
         while True:
@@ -444,8 +694,8 @@ class GenericScada(BasePLC):
             with lock:
                 for plc_ip in self.plc_data:
                     results.extend(self.cache[plc_ip])
-                    #self.logger.debug("scada values: " + str(self.plc_data[plc_ip]))
-                    #self.logger.debug("scada values: " + str(self.cache[plc_ip]))
+                    #self.logger.info("plc_data values: " + str(self.plc_data[plc_ip]))
+                    #self.logger.info("cache values: " + str(self.cache[plc_ip]))
             self.saved_values.append(results)
 
             # Save scada_values.csv when needed
@@ -453,10 +703,10 @@ class GenericScada(BasePLC):
                     master_time % self.intermediate_yaml['saving_interval'] == 0:
                 self.write_output()
 
-            if 'DQN_Control' in self.intermediate_yaml and self.intermediate_yaml['DQN_Control']:
-                self.update_actuator_values()
+            if self.intermediate_yaml['use_control_agent']:
+                self.execute_control_step()
 
-            self.set_sync(1)
+            self.set_sync(flag=1)
 
             if test_break:
                 break

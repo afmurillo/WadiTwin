@@ -170,8 +170,8 @@ class ControlDatabase:
                             );""")
 
             # Initialization of the sync table
-            cur.execute("INSERT INTO sync VALUES ('scada', 1);")
-            cur.execute("INSERT INTO sync VALUES ('agent', 1);")
+            cur.execute("INSERT INTO sync VALUES ('scada', 0);")
+            cur.execute("INSERT INTO sync VALUES ('agent', 0);")
 
             conn.commit()
 

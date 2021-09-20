@@ -32,13 +32,13 @@ env:
         'time': 0
         'day': 1
         'tanks':
-            - '41'
-            - '42'
+            - 'T41'
+            - 'T42'
         'junctions':
-            - '20'
+            - 'J20'
     action_vars:
-        - '78'
-        - '79'
+        - 'P78'
+        - 'P79'
 
     # duration: 86400    # 1 day
     duration: 604800    # 1 week

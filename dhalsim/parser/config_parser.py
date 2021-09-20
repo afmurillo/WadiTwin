@@ -354,8 +354,6 @@ class ConfigParser:
         if self.data['use_control_agent']:
             self.control_problem_directory = self.control_problem_path
 
-        print(self.data)
-
     @staticmethod
     def do_checks(data: dict):
         """
@@ -547,12 +545,12 @@ class ConfigParser:
 
         # Simulator to be used, it can be EPANET WNTR or EPANET epynet
         yaml_data['simulator'] = self.data['simulator']
+        yaml_data['use_control_agent'] = self.data['use_control_agent']
 
         # DQN controller is Reinforcement Q learning running at an SCADA server it modifies the behaviour of PLCs and
         # SCADA
         if self.data['use_control_agent']:
-            yaml_data['db_control_path'] = self.control_problem_directory + 'db_control.sqlite'
-            yaml_data['use_control_agent'] = self.data['use_control_agent']
+            yaml_data['db_control_path'] = self.control_problem_directory + '/db_control.sqlite'
 
         # Add batch mode parameters
         if self.batch_mode:
