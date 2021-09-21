@@ -8,7 +8,6 @@ import sys
 import time
 from decimal import Decimal
 from pathlib import Path
-import zmq
 import random
 
 import yaml
@@ -23,36 +22,52 @@ class GenericAgent:
     This agent knows the state of the network by reading the yaml file at intermediate_yaml_path and communicating
     with SCADA.
     """
-    def __init__(self, agent_yaml_path, intermediate_yaml_paths):
-        with agent_yaml_path.open(mode='r') as yaml_file:
+    def __init__(self, agent_yaml_path):
+        """
+
+        """
+        self.agent_yaml_path = agent_yaml_path
+
+        with self.agent_yaml_path.open(mode='r') as yaml_file:
             self.agent_config = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
         self.logger = get_logger(self.agent_config['log_level'])
 
-        # Debug the intermediate yaml paths
-        for i, yaml_path in enumerate(intermediate_yaml_paths):
-            self.logger.debug(str(i) + ': ' + str(yaml_path))
-
-        # Read the first intermediate yaml to get db_path
+        # Intermediate yaml and control database data, useful during the simulation
         self.intermediate_yaml_data = None
-        with Path(intermediate_yaml_paths[0]).open(mode='r') as yaml_file:
+        self.control_db = None
+
+        self.agent = None
+
+        #self.conn = sqlite3.connect(self.intermediate_yaml_data['db_control_path'])
+        #self.cur = self.conn.cursor()
+
+    def on_simulation_init(self, intermediate_yaml_path):
+        """
+        Creation of the agent and control database if not already existent.
+        Reset the agent environment for the next simulation.
+
+        :param intermediate_yaml_path: path of the current simulation intermediate_yaml file
+        :type intermediate_yaml_path: Path
+        """
+        with Path(intermediate_yaml_path).open(mode='r') as yaml_file:
             self.intermediate_yaml_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
-        self.control_db_path = self.intermediate_yaml_data['db_control_path']
+        if self.agent is None:
+            self.agent = 0 #DQNAgent()
 
-        # Debug prints to see if it works
-        # TODO: delete these lines
-        self.logger.info('YYYYYYYEEEEEEEEEEEEEEEEEEEEEEEEEEEE NEW CONTROL AGENT!!!!')
+        if self.control_db is None:
+            self.control_db = ControlDatabase(self.agent_yaml_path, intermediate_yaml_path)
 
-        self.control_db = ControlDatabase(agent_yaml_path, Path(intermediate_yaml_paths[0]))
-        self.conn = sqlite3.connect(self.intermediate_yaml_data['db_control_path'])
-        self.cur = self.conn.cursor()
+        # self.agent.reset()
 
-    def get_scada_ready(self):
+    def on_simulation_done(self):
         """
-        Check if scada has sent
+        Communicates to the agent that the simulation has terminated.
+        TODO: understand if we can do in this way
         """
         pass
+        # self.agent.done()
 
 
 def is_valid_file(parser_instance, arg):
@@ -72,7 +87,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    agent = GenericAgent(agent_yaml_path=Path(args.agent_yaml_path),
-                         intermediate_yaml_paths=args.intermediate_yaml_paths)
+    agent = GenericAgent(agent_yaml_path=Path(args.agent_yaml_path))
+                         #intermediate_yaml_paths=args.intermediate_yaml_paths)
 
 

@@ -71,27 +71,29 @@ class GenericScada(BasePLC):
         self.control_cur = None
         self.initialize_db()
 
-        # Tags of state and action variables with their translations
-        self.vars_dict = {'action_vars': {}, 'state_vars': {}}
-        self.create_vars_translation_dict()
+        # Code executed only if we want to face the control problem
+        if self.intermediate_yaml['use_control_agent']:
+            # Tags of state and action variables with their translations
+            self.vars_dict = {'action_vars': {}, 'state_vars': {}}
+            self.create_vars_translation_dict()
 
-        # Control database prepared statement
-        self._table_name = ['state_space', 'action_space']
-        self._value = 'value'
-        self._what = tuple()
-        self._set_query = None
-        self._get_query = None
+            # Control database prepared statement
+            self._table_name = ['state_space', 'action_space']
+            self._value = 'value'
+            self._what = tuple()
+            self._set_query = None
+            self._get_query = None
 
-        self._init_what()
+            self._init_what()
 
-        if not self._what:
-            raise ValueError('Primary key not found.')
-        else:
-            self._init_get_query()
-            self._init_set_query()
+            if not self._what:
+                raise ValueError('Primary key not found.')
+            else:
+                self._init_get_query()
+                self._init_set_query()
 
-        #TODO: comment
-        self.logger.info(self._what)
+            #TODO: comment
+            self.logger.info(self._what)
 
         self.output_path = Path(self.intermediate_yaml["output_path"]) / "scada_values.csv"
         self.output_path.touch(exist_ok=True)

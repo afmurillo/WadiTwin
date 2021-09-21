@@ -232,6 +232,12 @@ class SchemaParser:
                         Schema(lambda l: Path.is_file, error="'network_delay_data' could not be found."),
                         Schema(lambda f: f.suffix == '.csv',
                                error="Suffix of network_delay_data should be .csv")),
+                    Optional('agent_config_file'): And(
+                        Use(Path),
+                        Use(lambda p: config_path.absolute().parent.parent.parent / 'dhalsim' / 'control_agent' / p),
+                        Schema(lambda l: Path.is_file, error="'agent_config_file' could not be found."),
+                        Schema(lambda f: f.suffix == '.yaml',
+                               error="Suffix of agent_config_file should be .yaml")),
                     str: object
                 }
             )
@@ -313,6 +319,7 @@ class SchemaParser:
                 Use(str.lower),
                 Or('wntr', 'epynet')),
             Optional('use_control_agent', default=False): bool,
+            Optional('agent_config_file'): Path,
         })
 
         return config_schema.validate(data)
