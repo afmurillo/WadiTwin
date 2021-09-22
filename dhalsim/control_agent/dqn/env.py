@@ -48,7 +48,8 @@ class WaterNetworkEnvironment(Environment):
         self.update_every = self.config_data['env']['update_every']
 
         # This is the time of the simulation in seconds (has to be split in days and daytime)
-        self.time = None
+        # TODO: understand how to get it
+        self.sim_time = None
 
         self.done = False
         self.total_updates = 0
@@ -76,7 +77,9 @@ class WaterNetworkEnvironment(Environment):
         action_space = Discrete(2 ** len(self.action_vars))
 
         # Current state
-        self._state = self.build_current_state(reset=True)
+        self._state = self.build_current_state()
+        print(self._state)
+        print(len(self._state))
 
         # Bounds for observation space
         lows = np.array([self.bounds[key]['min'] for key in self.bounds.keys()])
@@ -91,18 +94,18 @@ class WaterNetworkEnvironment(Environment):
 
         print("ENVIRONMENT CREATED")
 
-    def build_current_state(self, reset=False):
+    def build_current_state(self):
         """
         Build current state list, which can be used as input of the nn saved_models
-        :param reset:
+
         :return:
         """
         state = []
+        for var in self.state_vars:
+            state.append(self.read_db(node_id=var))
 
-        #for var in self.
-
-        state = [np.float32(i) for i in state]
         return state
+        # return [np.float32(i) for i in state]
 
     def _init_what(self):
         """
@@ -243,7 +246,7 @@ class WaterNetworkEnvironment(Environment):
         query_args = (value, node_id)
 
         self.db_query(query=self._set_query, parameters=query_args)
-        self.control_conn.commit()
+        self.conn.commit()
 
     def read_db(self, node_id):
         """
@@ -257,18 +260,39 @@ class WaterNetworkEnvironment(Environment):
         query_args = (node_id,)
 
         self.db_query(query=self._get_query, parameters=query_args)
-        record = self.control_cur.fetchone()
+        record = self.cur.fetchone()
         return record[0]
 
     def get_scada_ready(self):
         pass
 
     def reset(self, state=None):
+        """
+
+        """
+        self.done = False
+        self._state = self.build_current_state()
         return self._state
 
     def step(self, action):
-        # return self._state, reward, self.done, info
-        pass
+        """
+
+        """
+        n_updates = 0
+
+        new_status_dict = {pump_id: 0 for pump_id in self.action_vars}
+        bin_action = '{0:0{width}b}'.format(action[0], width=len(self.action_vars))
+
+        for i, key in enumerate(new_status_dict.keys()):
+            new_status_dict[key] = int(bin_action[i])
+
+        # TODO:
+        # - update actuators value in the database
+        # - simulate step
+        # - retrieve new state
+        # - compute the reward
+        # - return self._state, reward, self.done, info
+        
 
     def render(self):
         pass

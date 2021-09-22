@@ -78,8 +78,11 @@ class GenericScada(BasePLC):
             self.state_vars = []
             self.generate_variables_collections()
 
-            self.logger.info(self.action_vars)
-            self.logger.info(self.state_vars)
+            self.actuator_status_cache = {}
+            self.sendable_tags = []
+
+            self.logger.info('actions: ' + str(self.action_vars))
+            self.logger.info('state: ' + str(self.state_vars))
 
             # Control database prepared statement
             self._table_name = ['state_space', 'action_space']
@@ -97,7 +100,7 @@ class GenericScada(BasePLC):
                 self._init_set_query()
 
             #TODO: comment
-            self.logger.info(self._what)
+            self.logger.info('primary key: ' + str(self._what))
 
         self.output_path = Path(self.intermediate_yaml["output_path"]) / "scada_values.csv"
         self.output_path.touch(exist_ok=True)
@@ -401,8 +404,6 @@ class GenericScada(BasePLC):
         Reads intermediate_yaml and initializes the actuators with the values defined in [STATUS] section of .inp file
         """
         if self.intermediate_yaml['use_control_agent']:
-            self.actuator_status_cache = {}
-            self.sendable_tags = []
 
             while not self.check_control_agent_ready():
                 time.sleep(0.01)
@@ -412,13 +413,7 @@ class GenericScada(BasePLC):
             with self.actuators_state_lock:
                 for actuator in actuators_status_dict.keys():
                     self.actuator_status_cache[actuator] = actuators_status_dict[actuator]
-        else:
-            for actuator in self.intermediate_yaml['actuators']:
-                if actuator['initial_state'].lower() == 'open':
-                    self.actuator_status_cache[actuator['name']] = 1
-                else:
-                    self.actuator_status_cache[actuator['name']] = 0
-                self.sendable_tags.append((actuator['name'], 1))
+                    self.sendable_tags.append((actuator, 1))
                 #TODO: check this
             #self.logger.debug('Initialized the actuators_status_cache with: ' + str(self.actuator_status_cache))
             #self.logger.debug('Tags for send are: ' + str(self.sendable_tags))

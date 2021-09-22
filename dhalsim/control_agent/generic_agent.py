@@ -55,6 +55,7 @@ class GenericAgent:
             self.agent = DQNAgent(self.agent_yaml_path)
 
         self.agent.reset_environment(intermediate_yaml_path)
+        self.agent.start_control_problem()
 
     def on_simulation_done(self):
         """

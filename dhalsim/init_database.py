@@ -115,7 +115,6 @@ class ControlDatabase:
         self.data = None
         self.db_path = None
         self.logger = get_logger('info')
-        self.logger.info("Initializing control agent database.")
 
     def init_tables(self, intermediate_yaml_path):
         """
@@ -129,6 +128,7 @@ class ControlDatabase:
 
         self.drop()
         self.create_table()
+        self.logger.info("Initializing control agent database.")
         self.print()
 
     def create_table(self):

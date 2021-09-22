@@ -19,6 +19,14 @@ init_db:
 env:
     town: 'anytown_pd'
     state_vars:
+        - 'T41'
+        - 'T42'
+        - 'J20'
+    action_vars:
+        - 'P78'
+        - 'P79'
+
+    state_vars_old:
         'time': 0
         'day': 1
         'tanks':
@@ -26,9 +34,7 @@ env:
             - 'T42'
         'junctions':
             - 'J20'
-    action_vars:
-        - 'P78'
-        - 'P79'
+
     # duration: 86400    # 1 day
     duration: 604800    # 1 week
     hyd_step: 600
