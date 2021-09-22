@@ -3,31 +3,21 @@ log_level: info
 init_db:
     state_space:
         - node: 'time'
-          property: 'hour'
-          initial_value: 0
-        - node: 'time'
-          property: 'day'
           initial_value: 1
-        - node: 'T41'
-          property: 'pressure'
+        - id: 'T41'
           initial_value: 0
-        - node: 'T42'
-          property: 'pressure'
+        - id: 'T42'
           initial_value: 0
-        - node: 'J20'
-          property: 'pressure'
+        - id: 'J20'
           initial_value: 0
     action_space:
-        - node: 'P78'
-          property: 'status'
+        - id: 'P78'
           initial_value: 0
-        - node: 'P79'
-          property: 'status'
+        - id: 'P79'
           initial_value: 0
 
 env:
     town: 'anytown_pd'
-
     state_vars:
         'time': 0
         'day': 1
@@ -39,7 +29,6 @@ env:
     action_vars:
         - 'P78'
         - 'P79'
-
     # duration: 86400    # 1 day
     duration: 604800    # 1 week
     hyd_step: 600

@@ -108,16 +108,24 @@ class ControlDatabase:
     """
     Database used to connect SCADA process with control agent process.
     """
-    def __init__(self, agent_yaml_path: Path, intermediate_yaml_path: Path):
-        with agent_yaml_path.open(mode='r') as file:
-            self.agent_config = yaml.safe_load(file)
+    def __init__(self):
+        """
+        Create only the instance of the database
+        """
+        self.data = None
+        self.db_path = None
+        self.logger = get_logger('info')
+        self.logger.info("Initializing control agent database.")
+
+    def init_tables(self, intermediate_yaml_path):
+        """
+        Reset the database with its initial values.
+        """
         with intermediate_yaml_path.open(mode='r') as file:
             self.data = yaml.safe_load(file)
 
-        self.logger = get_logger(self.data['log_level'])
         self.db_path = Path(self.data["db_control_path"])
         self.db_path.touch(exist_ok=True)
-        self.logger.info("Initializing control agent database.")
 
         self.drop()
         self.create_table()
@@ -132,29 +140,28 @@ class ControlDatabase:
 
             # Table of the observation space with the variables the scada sends to control agent
             cur.execute("""CREATE TABLE state_space (
-                                node        TEXT      NOT NULL,
-                                property    TEXT      NOT NULL,
-                                value       INTEGER   NOT NULL,
-                                PRIMARY KEY (node, property)
+                                id      TEXT      NOT NULL,
+                                value   INTEGER   NOT NULL,
+                                PRIMARY KEY (id)
                             );""")
 
-            # Initialization of state_space table
-            for var in self.agent_config["init_db"]['state_space']:
-                cur.execute("INSERT INTO state_space VALUES (?, ?, ?);",
-                            (var['node'], var["property"], var['initial_value']))
+            if "plcs" in self.data:
+                for plc in self.data["plcs"]:
+                    for sensor in plc["sensors"]:
+                        cur.execute("INSERT INTO state_space VALUES (?, 0);", (sensor,))
 
             # Table of the action space with status of actuators sent by the control agent to the scada
             cur.execute("""CREATE TABLE action_space (
-                                node        TEXT      NOT NULL,
-                                property    TEXT      NOT NULL,
-                                value       INTEGER   NOT NULL,
-                                PRIMARY KEY (node, property)
+                                id      TEXT      NOT NULL,
+                                value   INTEGER   NOT NULL,
+                                PRIMARY KEY (id)
                             );""")
 
-            # Initialization of action_space table
-            for var in self.agent_config["init_db"]['action_space']:
-                cur.execute("INSERT INTO action_space VALUES (?, ?, ?);",
-                            (var['node'], var["property"], var['initial_value']))
+            if "actuators" in self.data:
+                for actuator in self.data["actuators"]:
+                    initial_state = "0" if actuator["initial_state"].lower() == "closed" else "1"
+                    cur.execute("INSERT INTO action_space VALUES (?, ?);",
+                                (actuator["name"], initial_state))
 
             # Table of simulation clock time
             cur.execute("CREATE TABLE master_time (id INTEGER PRIMARY KEY, time INTEGER);")
@@ -170,7 +177,7 @@ class ControlDatabase:
                             );""")
 
             # Initialization of the sync table
-            cur.execute("INSERT INTO sync VALUES ('scada', 0);")
+            cur.execute("INSERT INTO sync VALUES ('scada', 1);")
             cur.execute("INSERT INTO sync VALUES ('agent', 0);")
 
             conn.commit()

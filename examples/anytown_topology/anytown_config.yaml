@@ -7,7 +7,7 @@ plcs: !include anytown_plcs.yaml
 simulator: epynet
 demand: pdd
 
-#use_control_agent: True
+use_control_agent: True
 agent_config_file: agent_config.yaml
 
 # batch_simulations: 2

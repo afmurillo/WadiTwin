@@ -14,6 +14,7 @@ import yaml
 
 from dhalsim.py3_logger import get_logger
 from dhalsim.init_database import ControlDatabase
+from dhalsim.control_agent.dqn.dqn import DQNAgent
 
 
 class GenericAgent:
@@ -38,9 +39,7 @@ class GenericAgent:
         self.control_db = None
 
         self.agent = None
-
-        #self.conn = sqlite3.connect(self.intermediate_yaml_data['db_control_path'])
-        #self.cur = self.conn.cursor()
+        self.control_db = ControlDatabase()
 
     def on_simulation_init(self, intermediate_yaml_path):
         """
@@ -50,16 +49,12 @@ class GenericAgent:
         :param intermediate_yaml_path: path of the current simulation intermediate_yaml file
         :type intermediate_yaml_path: Path
         """
-        with Path(intermediate_yaml_path).open(mode='r') as yaml_file:
-            self.intermediate_yaml_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
+        self.control_db.init_tables(intermediate_yaml_path)
 
         if self.agent is None:
-            self.agent = 0 #DQNAgent()
+            self.agent = DQNAgent(self.agent_yaml_path)
 
-        if self.control_db is None:
-            self.control_db = ControlDatabase(self.agent_yaml_path, intermediate_yaml_path)
-
-        # self.agent.reset()
+        self.agent.reset_environment(intermediate_yaml_path)
 
     def on_simulation_done(self):
         """

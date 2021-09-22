@@ -73,9 +73,13 @@ class GenericScada(BasePLC):
 
         # Code executed only if we want to face the control problem
         if self.intermediate_yaml['use_control_agent']:
-            # Tags of state and action variables with their translations
-            self.vars_dict = {'action_vars': {}, 'state_vars': {}}
-            self.create_vars_translation_dict()
+            # Tags of state and action variables
+            self.action_vars = []
+            self.state_vars = []
+            self.generate_variables_collections()
+
+            self.logger.info(self.action_vars)
+            self.logger.info(self.state_vars)
 
             # Control database prepared statement
             self._table_name = ['state_space', 'action_space']
@@ -157,6 +161,14 @@ class GenericScada(BasePLC):
             self.control_conn = sqlite3.connect(self.intermediate_yaml['db_control_path'])
             self.control_cur = self.control_conn.cursor()
 
+    def generate_variables_collections(self):
+        """
+        Create lists containing ids of action and state variables
+        """
+        for i in range(len(self.intermediate_yaml['plcs'])):
+            self.action_vars.extend(self.intermediate_yaml['plcs'][i]['actuators'])
+            self.state_vars.extend(self.intermediate_yaml['plcs'][i]['sensors'])
+
     @staticmethod
     def generate_real_tags(plcs):
         """
@@ -220,7 +232,7 @@ class GenericScada(BasePLC):
 
     def db_query(self, query, cur, parameters=None):
         """
-        Execute a query on the database
+        Execute a query on the databases.
         On a :code:`sqlite3.OperationalError` it will retry with a max of :code:`DB_TRIES` tries.
         Before it reties, it will sleep for :code:`DB_SLEEP_TIME` seconds.
         This is necessary because of the limited concurrency in SQLite.
@@ -254,7 +266,7 @@ class GenericScada(BasePLC):
 
     def get_sync(self, use_control_db=False):
         """
-        Get the sync flag of the scada.
+        Get the sync flag of the scada or of the control agent.
         On a :code:`sqlite3.OperationalError` it will retry with a max of :code:`DB_TRIES` tries.
         Before it reties, it will sleep for :code:`DB_SLEEP_TIME` seconds.
 
@@ -391,12 +403,23 @@ class GenericScada(BasePLC):
         if self.intermediate_yaml['use_control_agent']:
             self.actuator_status_cache = {}
             self.sendable_tags = []
+
+            while not self.check_control_agent_ready():
+                time.sleep(0.01)
+
+            # Retrieve new action space variables from control db
+            actuators_status_dict = self.get_control_action()
+            with self.actuators_state_lock:
+                for actuator in actuators_status_dict.keys():
+                    self.actuator_status_cache[actuator] = actuators_status_dict[actuator]
+        else:
             for actuator in self.intermediate_yaml['actuators']:
                 if actuator['initial_state'].lower() == 'open':
                     self.actuator_status_cache[actuator['name']] = 1
                 else:
                     self.actuator_status_cache[actuator['name']] = 0
                 self.sendable_tags.append((actuator['name'], 1))
+                #TODO: check this
             #self.logger.debug('Initialized the actuators_status_cache with: ' + str(self.actuator_status_cache))
             #self.logger.debug('Tags for send are: ' + str(self.sendable_tags))
 
@@ -513,62 +536,35 @@ class GenericScada(BasePLC):
 
         self._get_query = get_query
 
-    def write_control_db(self, node, prop, value):
+    def write_control_db(self, node_id, value):
         """
         Set new state space values inside the state_space table.
 
-        :param node: name of the considered node
-        :type node: basestring
-
-        :param prop: property of the node we need to set
-        :type prop: basestring
+        :param node_id: id of the considered couple (node, property)
+        :type node_id: basestring
 
         :param value: value of the property
         :type value: float
         """
-        query_args = (value, node, prop)
+        query_args = (value, node_id)
 
-        for i in range(self.DB_TRIES):
-            try:
-                self.control_cur.execute(self._set_query, query_args)
-                self.control_conn.commit()
-                return query_args
+        self.db_query(query=self._set_query, cur=self.control_cur, parameters=query_args)
+        self.control_conn.commit()
 
-            except sqlite3.OperationalError as e:
-                self.logger.info('Failed writing control DB')
-                time.sleep(self.DB_SLEEP_TIME)
-
-        self.logger.error(
-            "Failed to connect to db. Tried {i} times.".format(i=self.DB_TRIES))
-        raise DatabaseError("Failed to get master clock from database")
-
-    def read_control_db(self, node, prop):
+    def read_control_db(self, node_id):
         """
         Read the value of the actuators status and retrieve it.
 
-        :param node: name of the considered node
-        :type node: basestring
-
-        :param prop: property of the node we need to set
-        :type prop: basestring
+        :param node_id: name of the considered couple (node, property)
+        :type node_id: basestring
 
         :return: value of the actuator status
         """
-        query_args = (node, prop)
+        query_args = (node_id,)
 
-        for i in range(self.DB_TRIES):
-            try:
-                self.control_cur.execute(self._get_query, query_args)
-                record = self.control_cur.fetchone()
-                return record[0]
-
-            except sqlite3.OperationalError as e:
-                self.logger.info('Failed reading control DB')
-                time.sleep(self.DB_SLEEP_TIME)
-
-        self.logger.error(
-            "Failed to connect to db. Tried {i} times.".format(i=self.DB_TRIES))
-        raise DatabaseError("Failed to get master clock from database")
+        self.db_query(query=self._get_query, cur=self.control_cur, parameters=query_args)
+        record = self.control_cur.fetchone()
+        return record[0]
 
     def check_control_agent_ready(self):
         """
@@ -587,8 +583,8 @@ class GenericScada(BasePLC):
         with plcs.
         """
         # List of tuples in the following format: (var_name, new_value)
+        """
         new_state = []
-
         # Enumeration of variable signatures
         for i, val in enumerate(self.saved_values[0]):
             if val in self.vars_dict['state_vars'].keys():
@@ -598,8 +594,11 @@ class GenericScada(BasePLC):
             node, prop = self.vars_dict['state_vars'][var[0]]
             #self.logger.info(node)
             #self.logger.info(prop)
+        """
 
-            self.write_control_db(node=node, prop=prop, value=var[1])
+        for i, var in enumerate(self.saved_values[0]):
+            if var in self.state_vars:
+                self.write_control_db(node_id=var, value=float(self.saved_values[-1][i]))
 
         self.set_sync(use_control_db=True)
 
@@ -612,11 +611,10 @@ class GenericScada(BasePLC):
         """
         new_action = {}
 
-        for val in self.saved_values[0]:
-            if val in self.vars_dict['action_vars'].keys():
-                new_status = self.read_control_db(node=self.vars_dict['action_vars'][val][0],
-                                                  prop=self.vars_dict['action_vars'][val][1])
-                new_action[val] = new_status
+        for var in self.saved_values[0]:
+            if var in self.action_vars:
+                new_status = self.read_control_db(node_id=var)
+                new_action[var] = new_status
 
         return new_action
 
@@ -632,7 +630,7 @@ class GenericScada(BasePLC):
 
         # Retrieve new action space variables from control db
         actuators_status_dict = self.get_control_action()
-        self.logger.info(actuators_status_dict)
+        self.logger.info("New action: " + str(actuators_status_dict))
 
         # Update actuators status
         with self.actuators_state_lock:

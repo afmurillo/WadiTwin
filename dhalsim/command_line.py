@@ -68,6 +68,9 @@ class Runner:
 
             if self.config_parser.data['use_control_agent']:
                 self.control_agent.on_simulation_done()
+
+
+
         """
         if self.config_parser.batch_mode:
             # Start the generic control agent process, feeding it with its configuration yaml file and the paths of all
